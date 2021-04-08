@@ -655,7 +655,7 @@ def _legacy_load(f, map_location, pickle_module, **pickle_load_args):
             msg = f"source code of class '{torch.typename(container_type)}' has changed. {msg}"
             warnings.warn(msg, SourceChangeWarning)
 
-    def legacy_load(f):
+    def legacy_load(f, obj=None):
         deserialized_objects: Dict[int, Any] = {}
 
         def persistent_load(saved_id):
@@ -774,12 +774,24 @@ def _legacy_load(f, map_location, pickle_module, **pickle_load_args):
     deserialized_storage_keys = pickle_module.load(f, **pickle_load_args)
 
     offset = f.tell() if f_should_read_directly else None
+    import struct
+    fmap = {
+        t.float16: 'e',
+        t.float32: 'f'
+    }
     for key in deserialized_storage_keys:
         assert key in deserialized_objects
         deserialized_objects[key]._set_from_file(f, offset, f_should_read_directly)
         if offset is not None:
             offset = f.tell()
-
+        storage = deserialized_objects[key]
+        s = str(key) + '.bin'
+        with open(s, 'wb') as f2:
+            for i in range(0, storage.size(), 8192):
+                f2.write(struct.pack(fmap[storage.dtype] * min(storage.size() - i, 8192), *(storage[i:i+8192])))
+        obj = storage.__class__.from_file_(s, size=storage.size())
+        del storage
+        deserialized_objects[key] = obj
     torch._utils._validate_loaded_sparse_tensors()
 
     return result
