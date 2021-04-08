@@ -334,6 +334,7 @@ struct Environment {
       SugaredValuePtr value,
       TypePtr annotated_type) {
     Value* as_simple_value = asSimple(value);
+    std::cout << typeKindToString(as_simple_value->type()->kind()) << std::endl;
     if (as_simple_value && !as_simple_value->hasDebugName() &&
         meaningfulName(name) &&
         // note: if the value wasn't defined in this block, we might be giving a
@@ -3260,20 +3261,26 @@ struct to_ir {
       const TypePtr& type_hint = nullptr) {
     switch (tree.kind()) {
       case TK_VAR:
+        std::cout << "TYPE VAR:\n";
         return environment_stack->getSugaredVar(Var(tree).name());
       case '.': {
         auto select = Select(tree);
         auto sv = emitSugaredExpr(select.value(), 1);
+        std::cout << "TYPE DOT:\n";
         return sv->attr(select.range(), method, select.selector().name());
       }
       case TK_APPLY: {
         auto apply = Apply(tree);
+        std::cout << "TYPE APPLY:\n";
         return emitApplyExpr(apply, n_binders, type_hint);
       } break;
       case TK_SUBSCRIPT: {
+        std::cout << "TYPE SUBSCRIPT:\n";
         return emitSubscript(Subscript(tree), type_hint);
       } break;
       default:
+        auto l = std::make_shared<SimpleValue>(emitSimpleExpr(tree, type_hint));
+        std::cout << "TYPE DEAULT: " << typeKindToString(l->getValue()->type()->kind()) << std::endl;
         return std::make_shared<SimpleValue>(emitSimpleExpr(tree, type_hint));
     }
   }
@@ -3616,6 +3623,8 @@ struct to_ir {
       case TK_TUPLE_LITERAL: {
         auto ll = TupleLiteral(tree);
         auto values = getValues(ll.inputs(), /*maybe_unpack=*/true);
+        auto val = graph->insertNode(graph->createTuple(values))->output();
+        std::cout << "TUPEEE: " << typeKindToString(val->type()->kind()) << std::endl;
         return graph->insertNode(graph->createTuple(values))->output();
       } break;
       case TK_DICT_LITERAL: {
